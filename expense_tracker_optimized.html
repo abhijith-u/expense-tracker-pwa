@@ -1,0 +1,237 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Expense Tracker</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+    input, select, button { width: 100%; margin: 10px 0; padding: 10px; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    canvas { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h2>Daily Expense Tracker</h2>
+  <input type="date" id="date">
+  <select id="category" onchange="updateSubCategory()"><option value="Housing">Housing</option><option value="Food">Food</option><option value="Transport">Transport</option><option value="Life Essentials">Life Essentials</option><option value="Discretionary">Discretionary</option></select>
+  <select id="subCategory"></select>
+  <input type="number" id="amount" placeholder="Amount">
+  <input type="text" id="notes" placeholder="Notes">
+  <button onclick="addExpense()">Add Expense</button>
+  <button onclick="downloadExcel()">Download Excel</button>
+
+  
+  <label>Filter by Category:</label>
+  <select id="filterCategory" onchange="applyFilters()">
+    <option value="">All</option>
+    <option value="Housing">Housing</option>
+    <option value="Food">Food</option>
+    <option value="Transport">Transport</option>
+    <option value="Life Essentials">Life Essentials</option>
+    <option value="Discretionary">Discretionary</option>
+  </select>
+  <label>Filter by Sub-Category:</label>
+  <select id="filterSubCategory" onchange="applyFilters()">
+    <option value="">All</option>
+  </select>
+
+  <table id="expenseTable">
+    <thead>
+      <tr><th>Date</th><th>Category</th><th>Sub-Category</th><th>Amount</th><th>Notes</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  
+  <h3>Monthly Summary</h3>
+  <table id="monthlySummary">
+    <thead><tr><th>Month</th><th>Total</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <canvas id="categoryChart" width="400" height="200"></canvas>
+  <canvas id="trendChart" width="400" height="200"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script>
+    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+
+    
+    const categoryMap = {
+        Housing: ["Rent", "Water", "Electricity", "LPG", "Phone/Internet"],
+        Food: ["Groceries", "Restaurant"],
+        Transport: ["Transport", "Vehicle"],
+        "Life Essentials": ["Grooming", "Homeneeds", "Medical", "Gifts", "School", "Shopping"],
+        Discretionary: ["Entertainment", "Travel", "Miscellaneous"]
+    };
+
+    function updateSubCategory() {
+        const category = document.getElementById('category').value;
+      const subCategory = document.getElementById('subCategory').value;
+        const subCatSelect = document.getElementById('subCategory');
+        subCatSelect.innerHTML = '';
+        categoryMap[category].forEach(sub => {
+            const opt = document.createElement('option');
+            opt.value = sub;
+            opt.textContent = sub;
+            subCatSelect.appendChild(opt);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', updateSubCategory);
+
+    
+    
+    function applyFilters() {
+      const cat = document.getElementById('filterCategory').value;
+      const subCat = document.getElementById('filterSubCategory').value;
+      const filtered = expenses.filter(exp => {
+        return (!cat || exp.category === cat) && (!subCat || exp.subCategory === subCat);
+      });
+      const rows = filtered.map(exp => `<tr><td>${exp.date}</td><td>${exp.category}</td><td>${exp.subCategory}</td><td>${exp.amount}</td><td>${exp.notes}</td></tr>`).join('');
+      document.querySelector('#expenseTable tbody').innerHTML = rows;
+      renderMonthlySummary(filtered);
+      renderFilteredCharts(filtered);
+      updateSubCategoryFilter(cat);
+    }
+              
+
+    function updateSubCategoryFilter(cat) {
+      const subCatSelect = document.getElementById('filterSubCategory');
+      subCatSelect.innerHTML = '<option value="">All</option>';
+      if (cat && categoryMap[cat]) {
+        categoryMap[cat].forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.textContent = sub;
+          subCatSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function renderMonthlySummary(data) {
+      const summary = {};
+      data.forEach(exp => {
+        const month = exp.date.slice(0,7);
+        summary[month] = (summary[month] || 0) + exp.amount;
+      });
+      const tbody = document.querySelector('#monthlySummary tbody');
+      tbody.innerHTML = '';
+      Object.keys(summary).forEach(month => {
+        tbody.innerHTML += `<tr><td>${month}</td><td>${summary[month].toFixed(2)}</td></tr>`;
+      });
+    }
+
+    function renderFilteredCharts(data) {
+      const categoryTotals = {};
+      const dateTotals = {};
+      data.forEach(exp => {
+        categoryTotals[exp.subCategory] = (categoryTotals[exp.subCategory] || 0) + exp.amount;
+        dateTotals[exp.date] = (dateTotals[exp.date] || 0) + exp.amount;
+      });
+
+      const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+      categoryCtx.clearRect(0, 0, categoryCtx.canvas.width, categoryCtx.canvas.height);
+      new Chart(categoryCtx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(categoryTotals),
+          datasets: [{
+            label: 'Expenses by Sub-Category',
+            data: Object.values(categoryTotals),
+            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+          }]
+        }
+      });
+
+      const trendCtx = document.getElementById('trendChart').getContext('2d');
+      trendCtx.clearRect(0, 0, trendCtx.canvas.width, trendCtx.canvas.height);
+      new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels: Object.keys(dateTotals),
+          datasets: [{
+            label: 'Daily Expenses',
+            data: Object.values(dateTotals),
+            borderColor: 'rgba(153, 102, 255, 0.6)',
+            fill: false
+          }]
+        }
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector('#expenseTable tbody');
+      tbody.innerHTML = '';
+      expenses.forEach(exp => {
+        const row = `<tr><td>${exp.date}</td><td>${exp.category}</td><td>${exp.subCategory}</td><td>${exp.amount}</td><td>${exp.notes}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+      
+    }
+
+    function addExpense() {
+      const date = document.getElementById('date').value;
+      const category = document.getElementById('category').value;
+      const subCategory = document.getElementById('subCategory').value;
+      const amount = document.getElementById('amount').value;
+      const notes = document.getElementById('notes').value;
+
+      if (!date || !category || !amount) return alert('Please fill all required fields.');
+
+      expenses.push({ date, category, subCategory, amount: parseFloat(amount), notes });
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+      renderTable();
+    }
+
+    function downloadExcel() {
+      const worksheet = XLSX.utils.json_to_sheet(expenses);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+      XLSX.writeFile(workbook, "expenses.xlsx");
+    }
+
+    function renderCharts() {
+      const categoryTotals = {};
+      const dateTotals = {};
+
+      expenses.forEach(exp => {
+        categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
+        dateTotals[exp.date] = (dateTotals[exp.date] || 0) + exp.amount;
+      });
+
+      const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+      new Chart(categoryCtx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(categoryTotals),
+          datasets: [{
+            label: 'Total per Category',
+            data: Object.values(categoryTotals),
+            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+          }]
+        }
+      });
+
+      const trendCtx = document.getElementById('trendChart').getContext('2d');
+      new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels: Object.keys(dateTotals),
+          datasets: [{
+            label: 'Daily Expenses',
+            data: Object.values(dateTotals),
+            borderColor: 'rgba(153, 102, 255, 0.6)',
+            fill: false
+          }]
+        }
+      });
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>
