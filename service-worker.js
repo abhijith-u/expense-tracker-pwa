@@ -2,7 +2,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open('expense-cache').then(cache => {
       return cache.addAll([
-        'expense_tracker_optimized.html',
+        'index.html',
         'manifest.json',
         'icon.png',
         'https://cdn.jsdelivr.net/npm/chart.js',
