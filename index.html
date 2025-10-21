@@ -81,7 +81,7 @@
         });
     }
 
-    document.addEventListener('DOMContentLoaded', updateSubCategory);
+    
 
     
     
@@ -162,6 +162,27 @@
         }
       });
     }
+
+    
+    function autoBackup() {
+      if (expenses.length === 0) return;
+      const worksheet = XLSX.utils.json_to_sheet(expenses);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+      const blob = XLSX.write(workbook, { bookType: 'xlsx', type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `expenses_backup_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateSubCategory();
+      renderTable();
+      autoBackup();
+    });
 
     function renderTable() {
       const tbody = document.querySelector('#expenseTable tbody');
